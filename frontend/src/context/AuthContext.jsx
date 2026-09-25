@@ -5,33 +5,40 @@ const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(() => {
-    const storedUser = localStorage.getItem('user');
-    return storedUser ? JSON.parse(storedUser) : null;
+    try {
+      const storedUser = localStorage.getItem('user');
+      return storedUser ? JSON.parse(storedUser) : null;
+    } catch {
+      return null;
+    }
   });
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => {
+    return !!localStorage.getItem('token') && !localStorage.getItem('user');
+  });
 
   useEffect(() => {
     const checkAuth = async () => {
       const token = localStorage.getItem('token');
-      if (token) {
-        try {
-          const res = await authService.getMe();
-          if (res.success && res.data) {
-            setUser(res.data);
-            localStorage.setItem('user', JSON.stringify(res.data));
-          }
-        } catch (error) {
-          console.error('Session verification failed:', error);
-          // Only clear session if token is genuinely invalid/expired (401/403)
-          // Do NOT clear session on temporary network timeouts or 502 cold starts from Render
-          if (error.response && (error.response.status === 401 || error.response.status === 403)) {
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
-            setUser(null);
-          }
-        }
+      if (!token) {
+        setLoading(false);
+        return;
       }
-      setLoading(false);
+      try {
+        const res = await authService.getMe();
+        if (res.success && res.data) {
+          setUser(res.data);
+          localStorage.setItem('user', JSON.stringify(res.data));
+        }
+      } catch (error) {
+        console.warn('Session verification notice:', error.message);
+        if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          setUser(null);
+        }
+      } finally {
+        setLoading(false);
+      }
     };
 
     checkAuth();
