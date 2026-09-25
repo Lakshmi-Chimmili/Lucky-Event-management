@@ -2,26 +2,28 @@ import axios from 'axios';
 
 // Dynamically determine the API base URL so the app works seamlessly on localhost and cloud deployments (Vercel/Render)
 const getApiBaseUrl = () => {
-  // 1. If explicitly configured in environment (Vite)
-  if (import.meta.env.VITE_API_URL) {
-    let url = import.meta.env.VITE_API_URL.trim().replace(/\/$/, '');
+  const isLocalhost =
+    typeof window !== 'undefined' &&
+    (window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1' ||
+      window.location.hostname.startsWith('192.168.'));
+
+  // 1. If running locally in browser, always connect to local backend
+  if (isLocalhost) {
+    return 'http://localhost:5000/api';
+  }
+
+  // 2. If running in production (Vercel/Render), ignore any localhost value
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
+    let url = envUrl.trim().replace(/\/$/, '');
     if (!url.endsWith('/api')) {
       url += '/api';
     }
     return url;
   }
 
-  // 2. If running locally in browser
-  if (
-    typeof window !== 'undefined' &&
-    (window.location.hostname === 'localhost' ||
-      window.location.hostname === '127.0.0.1' ||
-      window.location.hostname.startsWith('192.168.'))
-  ) {
-    return 'http://localhost:5000/api';
-  }
-
-  // 3. Fallback for production cloud deployments (e.g. Vercel)
+  // 3. Default production cloud backend on Render
   return 'https://lucky-event-management-1.onrender.com/api';
 };
 

@@ -19,31 +19,31 @@ import {
   Star
 } from 'lucide-react';
 
+import { DEFAULT_CATEGORIES } from '../config/defaultData';
+
 const CATEGORY_TAGS = ['All', 'Weddings', 'Parties', 'Corporate', 'Milestones', 'Gatherings'];
 
 const Events = () => {
-  const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
+  const [loading, setLoading] = useState(false);
+  const [isWarmingUp, setIsWarmingUp] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTag, setActiveTag] = useState('All');
   const [sortBy, setSortBy] = useState('featured');
   const [selectedQuickView, setSelectedQuickView] = useState(null);
   const navigate = useNavigate();
 
-  const fetchCategories = async () => {
-    setLoading(true);
-    setError(null);
+  const fetchCategories = async (isManual = false) => {
+    if (isManual) setLoading(true);
     try {
       const res = await categoryService.getAll();
-      if (res.success && Array.isArray(res.data)) {
+      if (res.success && Array.isArray(res.data) && res.data.length > 0) {
         setCategories(res.data);
-      } else {
-        setCategories([]);
+        setIsWarmingUp(false);
       }
     } catch (err) {
-      console.error('Error fetching categories:', err);
-      setError('Unable to load event packages. Please check if the backend server is running.');
+      console.warn('API sync in progress or server warming up:', err.message);
+      setIsWarmingUp(true);
     } finally {
       setLoading(false);
     }
@@ -51,6 +51,19 @@ const Events = () => {
 
   useEffect(() => {
     fetchCategories();
+
+    // Auto-retry connection every 10 seconds if warming up
+    const interval = setInterval(() => {
+      categoryService.getAll().then((res) => {
+        if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+          setCategories(res.data);
+          setIsWarmingUp(false);
+          clearInterval(interval);
+        }
+      }).catch(() => {});
+    }, 10000);
+
+    return () => clearInterval(interval);
   }, []);
 
   // Filter & Sort Logic
@@ -197,22 +210,20 @@ const Events = () => {
 
       {/* MAIN CONTENT AREA */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
-        {/* Error State */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 p-6 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 mb-8">
-            <div className="flex items-center gap-3">
-              <AlertCircle className="w-6 h-6 text-red-500 shrink-0" />
-              <div>
-                <h3 className="font-bold text-sm">Connection Issue</h3>
-                <p className="text-xs text-red-600">{error}</p>
-              </div>
+        {/* Cloud Warm-up Status Notice */}
+        {isWarmingUp && (
+          <div className="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 mb-8 text-xs font-medium animate-fadeIn">
+            <div className="flex items-center gap-2.5">
+              <RefreshCw className="w-4 h-4 text-amber-600 animate-spin shrink-0" />
+              <span>
+                <strong>Syncing with cloud backend:</strong> Server is connecting or waking up on Render. Displaying cached packages catalog with instant booking features.
+              </span>
             </div>
             <button
-              onClick={fetchCategories}
-              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl transition flex items-center gap-2 shrink-0"
+              onClick={() => fetchCategories(true)}
+              className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg transition shrink-0"
             >
-              <RefreshCw className="w-3.5 h-3.5" />
-              <span>Retry</span>
+              Sync Live
             </button>
           </div>
         )}

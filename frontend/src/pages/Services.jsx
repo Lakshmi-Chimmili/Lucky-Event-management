@@ -18,31 +18,31 @@ import {
   Star
 } from 'lucide-react';
 
+import { DEFAULT_SERVICES } from '../config/defaultData';
+
 const FILTER_TYPES = ['All', 'Flat Fee', 'Per Guest Rate'];
 
 const Services = () => {
-  const [services, setServices] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [services, setServices] = useState(DEFAULT_SERVICES);
+  const [loading, setLoading] = useState(false);
+  const [isWarmingUp, setIsWarmingUp] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeType, setActiveType] = useState('All');
   const [sortBy, setSortBy] = useState('featured');
   const [quickViewService, setQuickViewService] = useState(null);
   const navigate = useNavigate();
 
-  const fetchServices = async () => {
-    setLoading(true);
-    setError(null);
+  const fetchServices = async (isManual = false) => {
+    if (isManual) setLoading(true);
     try {
       const res = await serviceService.getAll();
-      if (res.success && Array.isArray(res.data)) {
+      if (res.success && Array.isArray(res.data) && res.data.length > 0) {
         setServices(res.data);
-      } else {
-        setServices([]);
+        setIsWarmingUp(false);
       }
     } catch (err) {
-      console.error('Error fetching services:', err);
-      setError('Unable to load event services. Please verify backend connection.');
+      console.warn('Services sync in progress or server warming up:', err.message);
+      setIsWarmingUp(true);
     } finally {
       setLoading(false);
     }
@@ -50,6 +50,18 @@ const Services = () => {
 
   useEffect(() => {
     fetchServices();
+
+    const interval = setInterval(() => {
+      serviceService.getAll().then((res) => {
+        if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+          setServices(res.data);
+          setIsWarmingUp(false);
+          clearInterval(interval);
+        }
+      }).catch(() => {});
+    }, 10000);
+
+    return () => clearInterval(interval);
   }, []);
 
   const filteredServices = useMemo(() => {
@@ -182,22 +194,20 @@ const Services = () => {
 
       {/* MAIN CONTENT AREA */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
-        {/* Error State */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 p-6 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 mb-8">
-            <div className="flex items-center gap-3">
-              <AlertCircle className="w-6 h-6 text-red-500 shrink-0" />
-              <div>
-                <h3 className="font-bold text-sm">Failed to Load Services</h3>
-                <p className="text-xs text-red-600">{error}</p>
-              </div>
+        {/* Cloud Warm-up Status Notice */}
+        {isWarmingUp && (
+          <div className="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 mb-8 text-xs font-medium animate-fadeIn">
+            <div className="flex items-center gap-2.5">
+              <RefreshCw className="w-4 h-4 text-amber-600 animate-spin shrink-0" />
+              <span>
+                <strong>Syncing with cloud backend:</strong> Server is connecting or waking up on Render. Displaying cached add-on services catalog.
+              </span>
             </div>
             <button
-              onClick={fetchServices}
-              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl transition flex items-center gap-2 shrink-0"
+              onClick={() => fetchServices(true)}
+              className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg transition shrink-0"
             >
-              <RefreshCw className="w-3.5 h-3.5" />
-              <span>Retry</span>
+              Sync Live
             </button>
           </div>
         )}
