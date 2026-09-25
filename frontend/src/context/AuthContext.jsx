@@ -22,9 +22,13 @@ export const AuthProvider = ({ children }) => {
           }
         } catch (error) {
           console.error('Session verification failed:', error);
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-          setUser(null);
+          // Only clear session if token is genuinely invalid/expired (401/403)
+          // Do NOT clear session on temporary network timeouts or 502 cold starts from Render
+          if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            setUser(null);
+          }
         }
       }
       setLoading(false);

@@ -16,25 +16,68 @@ connectDB();
 
 const app = express();
 
-// Middleware
+// Robust CORS Configuration for Localhost, Vercel and Render
 const allowedOrigins = [
-  process.env.CLIENT_URL,
   'http://localhost:5173',
   'http://localhost:3000',
-  'http://127.0.0.1:5173'
-].filter(Boolean);
+  'http://127.0.0.1:5173',
+  'http://localhost:5000',
+  'https://lucky-event-management-ejqy.vercel.app',
+  'https://lucky-event-management-1.onrender.com'
+];
 
-app.use(cors({
+if (process.env.CLIENT_URL) {
+  process.env.CLIENT_URL.split(',').forEach((url) => {
+    const cleanUrl = url.trim().replace(/\/$/, '');
+    if (cleanUrl && !allowedOrigins.includes(cleanUrl)) {
+      allowedOrigins.push(cleanUrl);
+    }
+  });
+}
+
+const isOriginAllowed = (origin) => {
+  if (!origin) return true;
+  const normalized = origin.trim().replace(/\/$/, '');
+  return (
+    allowedOrigins.some((a) => a.trim().replace(/\/$/, '') === normalized) ||
+    normalized.endsWith('.vercel.app') ||
+    normalized.endsWith('.onrender.com') ||
+    process.env.NODE_ENV !== 'production' ||
+    process.env.CLIENT_URL === '*'
+  );
+};
+
+const corsOptions = {
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps, curl or postman)
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV !== 'production') {
+    if (isOriginAllowed(origin)) {
       return callback(null, true);
     }
-    return callback(new Error('Not allowed by CORS'));
+    return callback(null, false);
   },
-  credentials: true
-}));
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range'],
+  optionsSuccessStatus: 204
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
+
+// Explicit header fallback middleware for preflights & proxies
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && isOriginAllowed(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  }
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204);
+  }
+  next();
+});
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));

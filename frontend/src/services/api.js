@@ -1,15 +1,41 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+// Dynamically determine the API base URL so the app works seamlessly on localhost and cloud deployments (Vercel/Render)
+const getApiBaseUrl = () => {
+  // 1. If explicitly configured in environment (Vite)
+  if (import.meta.env.VITE_API_URL) {
+    let url = import.meta.env.VITE_API_URL.trim().replace(/\/$/, '');
+    if (!url.endsWith('/api')) {
+      url += '/api';
+    }
+    return url;
+  }
+
+  // 2. If running locally in browser
+  if (
+    typeof window !== 'undefined' &&
+    (window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1' ||
+      window.location.hostname.startsWith('192.168.'))
+  ) {
+    return 'http://localhost:5000/api';
+  }
+
+  // 3. Fallback for production cloud deployments (e.g. Vercel)
+  return 'https://lucky-event-management-1.onrender.com/api';
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json'
-  }
+  },
+  timeout: 45000 // 45 seconds to accommodate Render free-tier cold starts
 });
 
-// Request interceptor to attach JWT token
+// Request interceptor: Attach JWT Bearer token
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
@@ -21,15 +47,21 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response interceptor to handle unauth 401s gracefully
+// Response interceptor: Gracefully handle 401 Unauthorized for authenticated endpoints
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    // Only wipe credentials if the request was an authenticated endpoint (exclude login & register)
     if (error.response && error.response.status === 401) {
-      // Clear invalid token if unauth
-      if (localStorage.getItem('token')) {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
+      const isAuthEndpoint =
+        error.config &&
+        (error.config.url.includes('/auth/login') || error.config.url.includes('/auth/register'));
+
+      if (!isAuthEndpoint) {
+        if (localStorage.getItem('token')) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+        }
       }
     }
     return Promise.reject(error);
