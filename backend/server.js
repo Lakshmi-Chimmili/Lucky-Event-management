@@ -5,7 +5,10 @@ const connectDB = require('./config/db');
 const { APP_NAME } = require('./config/constants');
 const { notFound, errorHandler } = require('./middleware/errorHandler');
 
+const path = require('path');
+
 // Load env vars
+dotenv.config({ path: path.join(__dirname, '.env') });
 dotenv.config();
 
 // Connect Database
