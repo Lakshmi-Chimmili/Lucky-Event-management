@@ -20,11 +20,13 @@ import {
   PartyPopper
 } from 'lucide-react';
 
+import { DEFAULT_CATEGORIES, DEFAULT_SERVICES } from '../config/defaultData';
+
 const Home = () => {
   const navigate = useNavigate();
-  const [categories, setCategories] = useState([]);
-  const [services, setServices] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [categories, setCategories] = useState(() => DEFAULT_CATEGORIES.slice(0, 6));
+  const [services, setServices] = useState(() => DEFAULT_SERVICES.slice(0, 6));
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -33,10 +35,14 @@ const Home = () => {
           categoryService.getAll(),
           serviceService.getAll()
         ]);
-        if (catRes.success) setCategories(catRes.data.slice(0, 6));
-        if (serRes.success) setServices(serRes.data.slice(0, 6));
+        if (catRes.success && Array.isArray(catRes.data) && catRes.data.length > 0) {
+          setCategories(catRes.data.slice(0, 6));
+        }
+        if (serRes.success && Array.isArray(serRes.data) && serRes.data.length > 0) {
+          setServices(serRes.data.slice(0, 6));
+        }
       } catch (error) {
-        console.error('Failed to load homepage items:', error);
+        console.warn('Backend server waking up, using default curated content:', error.message);
       } finally {
         setLoading(false);
       }

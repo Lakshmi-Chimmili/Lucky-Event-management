@@ -22,6 +22,8 @@ import {
   Plus
 } from 'lucide-react';
 
+import { DEFAULT_CATEGORIES, DEFAULT_SERVICES } from '../config/defaultData';
+
 const BookingWizard = () => {
   const { user, isAuthenticated } = useAuth();
   const { showSuccess, showError } = useToast();
@@ -31,20 +33,27 @@ const BookingWizard = () => {
   // Wizard Step (1 to 7)
   const [currentStep, setCurrentStep] = useState(1);
 
-  // Data Sources from backend
-  const [categories, setCategories] = useState([]);
-  const [services, setServices] = useState([]);
-  const [loadingData, setLoadingData] = useState(true);
+  // Data Sources from backend with curated fallbacks
+  const [categories, setCategories] = useState(() => DEFAULT_CATEGORIES);
+  const [services, setServices] = useState(() => DEFAULT_SERVICES);
+  const [loadingData, setLoadingData] = useState(false);
 
   // Form State
-  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [selectedCategory, setSelectedCategory] = useState(() => {
+    return location.state?.selectedCategory || DEFAULT_CATEGORIES[0];
+  });
   const [attendeeCount, setAttendeeCount] = useState(100);
   const [eventDate, setEventDate] = useState('');
   const [eventTime, setEventTime] = useState('18:00');
   const [venueAddress, setVenueAddress] = useState('');
   const [city, setCity] = useState('');
   const [notes, setNotes] = useState('');
-  const [selectedServices, setSelectedServices] = useState([]);
+  const [selectedServices, setSelectedServices] = useState(() => {
+    if (location.state?.selectedService) {
+      return [location.state.selectedService._id];
+    }
+    return [];
+  });
 
   // Submitting state
   const [submitting, setSubmitting] = useState(false);
@@ -57,17 +66,16 @@ const BookingWizard = () => {
           categoryService.getAll(),
           serviceService.getAll()
         ]);
-        if (catRes.success) {
+        if (catRes.success && Array.isArray(catRes.data) && catRes.data.length > 0) {
           setCategories(catRes.data);
-          // If passed via navigation state
           if (location.state?.selectedCategory) {
             const found = catRes.data.find(c => c._id === location.state.selectedCategory._id);
             if (found) setSelectedCategory(found);
-          } else if (catRes.data.length > 0) {
+          } else if (!selectedCategory) {
             setSelectedCategory(catRes.data[0]);
           }
         }
-        if (serRes.success) {
+        if (serRes.success && Array.isArray(serRes.data) && serRes.data.length > 0) {
           setServices(serRes.data);
           if (location.state?.selectedService) {
             const foundSer = serRes.data.find(s => s._id === location.state.selectedService._id);
@@ -75,7 +83,7 @@ const BookingWizard = () => {
           }
         }
       } catch (err) {
-        showError('Failed to load event data');
+        console.warn('Backend waking up, loaded default data:', err.message);
       } finally {
         setLoadingData(false);
       }
